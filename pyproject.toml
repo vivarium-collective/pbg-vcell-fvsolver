@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pbg-vcell-fvsolver"
+version = "0.1.0"
+description = "process-bigraph wrapper around pyvcell / pyvcell-fvsolver for 3D reaction-diffusion simulations"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [{name = "Eran Agmon"}]
+dependencies = [
+    "process-bigraph>=0.0.30",
+    "bigraph-schema>=0.0.60",
+    "numpy>=1.26",
+    "pyvcell>=0.2",
+    "pyvcell-fvsolver>=0.1",
+]
+
+[project.optional-dependencies]
+demo = [
+    "bigraph-viz>=0.0.40",
+    "matplotlib>=3.8",
+]
+test = [
+    "pytest>=8",
+]
+
+[tool.setuptools.packages.find]
+include = ["pbg_vcell_fvsolver*"]
