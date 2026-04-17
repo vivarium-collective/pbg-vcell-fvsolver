@@ -2,34 +2,24 @@
 
 A [process-bigraph](https://github.com/vivarium-collective/process-bigraph)
 wrapper around [`pyvcell`](https://github.com/virtualcell/pyvcell) and
-[`pyvcell-fvsolver`](https://pypi.org/project/pyvcell-fvsolver/) — the
-Python bindings to VCell's native **finite-volume PDE solver** — for
-3D reaction-diffusion simulation.
+[`pyvcell-fvsolver`](https://pypi.org/project/pyvcell-fvsolver/) —
+VCell's native finite-volume 3D reaction-diffusion PDE solver as a PBG
+`Process`.
 
-Define a reaction network in Antimony, describe diffusion coefficients
-and initial concentrations, hand it to `VCellFVProcess`, and the
-wrapper drives VCell's finite-volume kernel to produce per-species 3D
-concentration fields that compose naturally with other PBG processes.
+**[View Interactive Demo Report](https://vivarium-collective.github.io/pbg-vcell-fvsolver/)** — Gaussian-pulse diffusion, an A→B→C cascade, and a two-source binding reaction, with PyVista vtk.js 3D viewers, Plotly charts, and bigraph architecture diagrams.
 
 ## What it does
 
-- Accepts Antimony text for the reaction network (species, reactions, rates).
-- Builds a VCML model programmatically, adds a cubic/rectangular spatial
-  geometry, species-to-compartment mappings with diffusion coefficients,
-  and a FV simulation configuration.
-- Calls `pyvcell.vcml.simulate`, which converts VCML → FV input files and
-  invokes `pyvcell_fvsolver.solve()` (a C++ binding to the same native
-  solver VCell ships).
-- Caches the full 4D output and streams 3D voxel snapshots on each
-  `update(interval)` through the PBG composite.
+Accepts an Antimony reaction network, adds a box geometry + diffusion
+coefficients + initial-concentration expressions, calls
+`pyvcell.simulate` (which compiles to VCML → FV input files and
+invokes `pyvcell_fvsolver.solve()`), caches the 4D result, and streams
+per-species 3D voxel fields as the composite advances.
 
 ## Installation
 
 ```bash
-uv venv .venv
-source .venv/bin/activate
-uv pip install -e .
-# for demo report / tests:
+uv venv .venv && source .venv/bin/activate
 uv pip install -e ".[demo,test]"
 ```
 
@@ -56,14 +46,11 @@ core.register_link('ram-emitter', RAMEmitter)
 
 doc = make_rd_document(
     antimony=ANTIMONY,
-    species={
-        'A': {'init_conc': 'exp(-((x-5)^2 + (y-5)^2 + (z-5)^2))',
-              'diff_coef': 0.5},
-        'B': {'init_conc': '0.0', 'diff_coef': 0.5},
-    },
-    compartment='cell',
-    extent=(10.0, 10.0, 10.0),    # µm
-    mesh_size=(22, 22, 22),       # voxels
+    species={'A': {'init_conc': 'exp(-((x-5)^2+(y-5)^2+(z-5)^2))',
+                   'diff_coef': 0.5},
+             'B': {'init_conc': '0.0', 'diff_coef': 0.5}},
+    extent=(10.0, 10.0, 10.0),
+    mesh_size=(22, 22, 22),
     duration=2.0,
     output_time_step=0.25,
     track_species=['A', 'B'],
@@ -72,99 +59,59 @@ doc = make_rd_document(
 
 sim = Composite({'state': doc}, core=core)
 sim.run(2.0)
-
-print(sim.state['stores']['means'])          # per-species mean [µM]
-field_A = sim.state['stores']['fields']['A'] # 22×22×22 float grid
+print(sim.state['stores']['means'])         # per-species mean [µM]
+field_A = sim.state['stores']['fields']['A']  # 22×22×22 float grid
 ```
 
-## API Reference
+## API
 
-### `VCellFVProcess` (process-bigraph Process)
+**`VCellFVProcess`** config: `antimony`, `compartment`, `init_concs`
+(map `name → init_conc_expression`), `diff_coefs` (map `name → float`),
+`extent_{x,y,z}`, `mesh_{x,y,z}`, `duration`, `output_time_step`,
+`track_species`, `quiet`.
 
-| Port      | Type                  | Description |
-|-----------|-----------------------|-------------|
-| `fields`  | `overwrite[map[list]]` | Per-species 3D concentration grid (nested lists, shape `nx × ny × nz`) |
-| `means`   | `overwrite[map[float]]`| Domain-mean concentration per species |
-| `totals`  | `overwrite[map[float]]`| Sum over all voxels (proxy for total mass) |
-| `time`    | `overwrite[float]`    | Current simulated time (seconds) |
-| `num_snapshots` | `overwrite[integer]` | Number of solver output times cached |
-| `snapshot_index` | `overwrite[integer]` | Index into the cached snapshots |
+**Outputs** (all `overwrite`): `fields` (per-species 3D grid as nested
+lists), `means`, `totals`, `time`, `num_snapshots`, `snapshot_index`.
 
-**Config**
+**Helpers**: `get_mesh_shape()`, `get_extent()`, `get_channel_ids()`,
+`get_time_points()`.
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `antimony` | str | `''` | Antimony source for the reaction network. |
-| `compartment` | str | `'cell'` | Compartment name to map onto the 3D domain. |
-| `init_concs` | `map[string]` | `{}` | Species → init_conc **expression** (may use `x,y,z`). |
-| `diff_coefs` | `map[float]` | `{}` | Species → diffusion coefficient (µm²/s). |
-| `extent_x/y/z` | float | `10.0` | Physical extents of the cubic domain. |
-| `mesh_x/y/z` | int | `20` | Voxel grid dimensions. |
-| `duration` | float | `1.0` | Total simulated time to pre-compute. |
-| `output_time_step` | float | `0.1` | Solver snapshot interval. |
-| `track_species` | `list[string]` | `[]` | Subset to emit; `[]` = auto (all model species). |
-| `quiet` | bool | `True` | Suppress JVM/libvcell stdout noise. |
-
-**Helper methods**
-
-- `get_mesh_shape() -> (nx, ny, nz)`
-- `get_extent()     -> (Lx, Ly, Lz)`
-- `get_time_points() -> list[float]`
-- `get_channel_ids() -> list[str]` — all solver channels including
-  auxiliary outputs (`region_mask`, `x/y/z`, initial conditions, …).
-
-### `make_rd_document(...)` (factory)
-
-Builds a composite document dict wiring `VCellFVProcess` to a `stores`
-tree and a `ram-emitter` for time-series collection. Returns a dict
-suitable for `Composite({'state': doc}, core=core)`.
+**`make_rd_document(...)`** — composite factory wiring the process to
+stores and a `ram-emitter`.
 
 ## Architecture
 
 ```
-Antimony  ──► pyvcell ──► libvcell ──► VCML ──► .fvinput + .vcg
-                                                        │
-                                                        ▼
-                       pyvcell-fvsolver.solve() [C++]
-                                   │
-                                   ▼
-              zarr datastore (4D: t × x × y × z × species)
-                                   │
-             pyvcell.sim_results.Result ◄─── VCellFVProcess
-                                   │
-                                   ▼
-                        PBG outputs (fields, means, totals)
+Antimony ─► pyvcell ─► VCML ─► .fvinput/.vcg
+                                    │
+                                    ▼
+              pyvcell-fvsolver.solve()  [native C++]
+                                    │
+                                    ▼
+                         zarr datastore (4D)
+                                    │
+                                    ▼
+                       VCellFVProcess ─► PBG ports
 ```
 
-`VCellFVProcess` uses a pre-run bridge pattern: it runs the full
-batch simulation once on the first `update()` call, caches the
-zarr-backed `Result`, then emits per-snapshot fields as composite
-time advances. This matches VCell's native execution model — the
-finite-volume solver is a batch engine, not an interactive stepper.
+`VCellFVProcess` pre-runs the batch solver on the first `update()`
+call and then indexes cached snapshots — matching VCell's native
+execution model (the FV solver is a batch engine, not a stepper).
 
 ## Demo
 
 ```bash
-source .venv/bin/activate
 python demo/demo_report.py
 ```
 
-Produces `demo/report.html` (~3.5 MB) with three distinct 3D
-reaction-diffusion scenarios:
-
-1. **Gaussian Pulse Diffusion** — pure Fickian diffusion benchmark.
-2. **Reaction-Diffusion Cascade** — A → B → C with different D's.
-3. **Two-Source Mixing** — A + B → C with opposing diffusion fronts.
-
-Each section includes an interactive Three.js voxel-cloud viewer
-(drag/rotate/play), Plotly time-series charts, a bigraph-viz PNG of
-the composite architecture, and a collapsible JSON tree of the PBG
-document. The report auto-opens in Safari on macOS.
+Produces `demo/report.html` with three configurations, interactive
+PyVista vtk.js 3D viewers (same rendering stack as pyvcell's trame
+widget), Plotly charts, bigraph-viz diagrams, and per-experiment
+model/geometry tables.
 
 ## Tests
 
 ```bash
-source .venv/bin/activate
 pytest -q
 ```
 
