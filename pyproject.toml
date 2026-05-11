@@ -13,9 +13,11 @@ authors = [{name = "Eran Agmon"}]
 dependencies = [
     "process-bigraph>=0.0.30",
     "bigraph-schema>=0.0.60",
+    "pbg-superpowers",
     "numpy>=1.26",
     "pyvcell>=0.2",
     "pyvcell-fvsolver>=0.1",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
@@ -27,5 +29,11 @@ test = [
     "pytest>=8",
 ]
 
+[tool.uv.sources]
+pbg-superpowers = { git = "https://github.com/vivarium-collective/pbg-superpowers.git", branch = "main" }
+
 [tool.setuptools.packages.find]
 include = ["pbg_vcell_fvsolver*"]
+
+[tool.setuptools.package-data]
+pbg_vcell_fvsolver = ["composites/*.yaml", "composites/*.composite.yaml"]
