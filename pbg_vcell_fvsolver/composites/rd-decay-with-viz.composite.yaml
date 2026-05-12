@@ -1,5 +1,6 @@
 name: rd-decay-with-viz
 description: "VCell FV reaction-diffusion decay demo with a wired Visualization Step. Each update produces a Plotly HTML figure of the per-species mean and total concentration trajectories, written to the 'viz_html' store."
+tags: [pde, reaction-diffusion, vcell, demo, visualization]
 
 requires:
   processes: [VCellFVProcess, RDFieldPlots, RAMEmitter]

@@ -1,5 +1,6 @@
 name: rd-decay-demo
 description: "Tiny VCell FV reaction-diffusion demo: a uniform pool of species A decays to species B (A -> B; k*A) on a small 3D Cartesian mesh. No diffusion. Emits per-snapshot mean/total concentration plus time-axis bookkeeping."
+tags: [pde, reaction-diffusion, vcell, demo]
 
 requires:
   processes: [VCellFVProcess, RAMEmitter]
